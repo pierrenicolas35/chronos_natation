@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Chrono Natation</title>
+  
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#2b5876">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #2b5876;
+      --secondary: #4e4376;
+      --background: #f7f9fc;
+      --text: #333;
+      --card-bg: #ffffff;
+      --success: #2e7d32;
+      --danger: #d32f2f;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    body { background-color: var(--background); color: var(--text); padding: 15px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+
+    .app-container { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 20px; }
+
+    header { display: flex; justify-content: center; align-items: center; padding: 10px 0; position: relative; width: 100%; }
+    header h1 { font-size: 1.4rem; color: var(--primary); }
+
+    .screen { display: none; background: var(--card-bg); border-radius: 20px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); animation: fadeIn 0.3s ease; }
+    .screen.active { display: block; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .banner { display: none; padding: 16px; border-radius: 12px; text-align: center; font-weight: 600; margin-bottom: 20px; align-items: center; justify-content: center; gap: 10px; animation: slideDown 0.3s ease; width: 100%; }
+    .success-banner { background-color: #e8f5e9; color: var(--success); }
+    .error-banner { background-color: #ffebee; color: var(--danger); }
+
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; font-size: 0.9rem; font-weight: 600; color: #555; }
+    input, select { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 10px; font-size: 1rem; background-color: #fafafa; }
+
+    .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .btn:disabled { background-color: #ccc !important; color: #888 !important; cursor: not-allowed; }
+    .btn-submit { background-color: var(--success); color: white; margin-top: 10px; }
+    .btn-primary { background-color: var(--primary); color: white; margin-top: 10px; }
+    .btn-back { background-color: #eee; color: #555; margin-top: 15px; }
+
+    .item-list { display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; margin: 15px 0; }
+    .hist-item { padding: 15px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .hist-item .date { font-size: 0.85rem; color: #777; }
+    .hist-item .temps { font-weight: bold; color: var(--primary); font-size: 1.1rem; }
+
+    .loading { text-align: center; padding: 30px; color: #888; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header>
+      <h1>⏱️ Chrono Natation</h1>
+    </header>
+
+    <div id="global-error" class="banner error-banner">
+      <span class="material-icons">error_outline</span> 
+      <span id="error-text">Message d'erreur</span>
+    </div>
+
+    <!-- ÉCRAN PRINCIPAL -->
+    <div id="screen-main" class="screen active">
+      <div id="add-success" class="banner success-banner">
+        <span class="material-icons">check_circle</span> Temps enregistré !
+      </div>
+
+      <div class="form-group">
+        <label>Nageur</label>
+        <input type="text" id="nageur" placeholder="Ex: Lucas, Thomas, Elisa...">
+      </div>
+
+      <div class="form-group">
+        <label>Épreuve</label>
+        <input type="text" id="epreuve" placeholder="Ex: 50m NL, 100m Dos...">
+      </div>
+
+      <div class="form-group">
+        <label>Bassin</label>
+        <select id="bassin">
+          <option value="25m">25m</option>
+          <option value="50m">50m</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="date">
+      </div>
+
+      <div class="form-group">
+        <label>Temps réalisé (mm:ss.cc ou ss.cc)</label>
+        <input type="text" id="tempsTexte" placeholder="Ex: 1:02.45 ou 31.20">
+      </div>
+
+      <button class="btn btn-submit" id="btn-save" onclick="soumettreTemps()">
+        <span class="material-icons">add_task</span> Enregistrer le temps
+      </button>
+
+      <button class="btn btn-primary" onclick="consulterHistorique()">
+        <span class="material-icons">history</span> Consulter l'historique
+      </button>
+    </div>
+
+    <!-- ÉCRAN HISTORIQUE -->
+    <div id="screen-history" class="screen">
+      <h2 id="history-title">Historique</h2>
+      <div id="history-container" class="item-list"></div>
+      <button class="btn btn-back" onclick="switchScreen('screen-main')">Retour</button>
+    </div>
+
+  </div>
+
+  <script>
+    // COLLE L'URL DE TON SCRIPT DÉPLOYÉ ICI
+    const API_URL = 'https://script.google.com/macros/s/AKfycbwNwgDMhWJqfIAC-_BZXTGUS2q_nOcb6R6ZxkrVjs-uuB_6JmneYkresmd5TqbhT2hTiw/exec';
+
+    let errorTimeout = null;
+
+    window.onload = () => {
+      document.getElementById('date').valueAsDate = new Date();
+    };
+
+    async function apiGet(action, params = {}) {
+      const urlParams = new URLSearchParams({ action, ...params });
+      const response = await fetch(`${API_URL}?${urlParams.toString()}`);
+      const json = await response.json();
+      if (json.status === 'error') throw new Error(json.message);
+      return json.data;
+    }
+
+    async function apiPost(data) {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(data)
+      });
+      const json = await response.json();
+      if (json.status === 'error') throw new Error(json.message);
+      return json.message;
+    }
+
+    function showError(message) {
+      const errorBanner = document.getElementById('global-error');
+      document.getElementById('error-text').innerText = message;
+      errorBanner.style.display = 'flex';
+      if(errorTimeout) clearTimeout(errorTimeout);
+      errorTimeout = setTimeout(() => { errorBanner.style.display = 'none'; }, 4000);
+    }
+
+    function switchScreen(screenId) {
+      document.getElementById('global-error').style.display = 'none';
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    async function soumettreTemps() {
+      const nageur = document.getElementById('nageur').value.trim();
+      const epreuve = document.getElementById('epreuve').value.trim();
+      const bassin = document.getElementById('bassin').value;
+      const date = document.getElementById('date').value;
+      const tempsTexte = document.getElementById('tempsTexte').value.trim();
+
+      if (!nageur || !epreuve || !date || !tempsTexte) {
+        return showError("Veuillez remplir tous les champs.");
+      }
+
+      const btnSave = document.getElementById('btn-save');
+      btnSave.disabled = true;
+      btnSave.innerText = "Enregistrement...";
+
+      try {
+        await apiPost({
+          action: 'ajouterTemps',
+          data: { nageur, epreuve, bassin, date, tempsTexte }
+        });
+
+        btnSave.disabled = false;
+        btnSave.innerText = "Enregistrer le temps";
+        
+        const successBanner = document.getElementById('add-success');
+        successBanner.style.display = 'flex';
+        document.getElementById('tempsTexte').value = '';
+
+        setTimeout(() => { successBanner.style.display = 'none'; }, 2000);
+      } catch (err) {
+        showError("Erreur : " + err.message);
+        btnSave.disabled = false;
+        btnSave.innerText = "Enregistrer le temps";
+      }
+    }
+
+    async function consulterHistorique() {
+      const nageur = document.getElementById('nageur').value.trim();
+      const epreuve = document.getElementById('epreuve').value.trim();
+
+      if (!nageur || !epreuve) {
+        return showError("Indiquez un nageur et une épreuve pour voir l'historique.");
+      }
+
+      switchScreen('screen-history');
+      document.getElementById('history-title').innerText = `${nageur} - ${epreuve}`;
+      document.getElementById('history-container').innerHTML = '<div class="loading">Recherche des chronos...</div>';
+
+      try {
+        const data = await apiGet('getHistorique', { nageur, epreuve });
+        renderHistory(data);
+      } catch (err) {
+        showError("Erreur : " + err.message);
+        document.getElementById('history-container').innerHTML = '<p style="text-align:center; padding:20px; color:var(--danger);">Impossible de charger l\'historique.</p>';
+      }
+    }
+
+    function renderHistory(data) {
+      const container = document.getElementById('history-container');
+      container.innerHTML = data.length ? '' : '<p style="text-align:center; padding:20px;">Aucun chrono enregistré pour ce nageur sur cette épreuve.</p>';
+      
+      data.forEach(h => {
+        const div = document.createElement('div');
+        div.className = 'hist-item';
+        div.innerHTML = `
+          <div>
+            <div class="temps">${h.tempsTexte}</div>
+            <div class="date">Bassin : ${h.bassin}</div>
+          </div>
+          <div class="date">${h.dateAffichage}</div>
+        `;
+        container.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>
