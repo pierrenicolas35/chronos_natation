@@ -8,12 +8,12 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://www.flaticon.com/free-icon/swimming_5222367?term=swimming&page=1&position=12&origin=search&related_id=5222367",
+      "src": "./icon.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://www.flaticon.com/free-icon/swimming_5222367?term=swimming&page=1&position=12&origin=search&related_id=5222367",
+      "src": "./icon.png",
       "sizes": "512x512",
       "type": "image/png"
     }
