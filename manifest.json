@@ -3,7 +3,7 @@
   "short_name": "Chrono Nat",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f7f9fc",
+  "background_color": "#f3f4f6",
   "theme_color": "#2b5876",
   "orientation": "portrait",
   "icons": [
