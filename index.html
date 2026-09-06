@@ -11,6 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="URL_DE_TON_LOGO.png">
   
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -431,7 +432,8 @@
 
   <script>
     // COLLE L'URL DE TON SCRIPT DÉPLOYÉ ICI
-    const API_URL = 'https://script.google.com/macros/s/AKfycbztHZN9MYMTGxApYM-NV3SlqJeXFZUdVTHH_LRATjSqYk9_yFEHbcn8yPwL0Y5Bh1D6/exec';
+    const SUPABASE_URL = 'https://qzorukvpcqeithoxenjh.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6b3J1a3ZwY3FlaXRob3hlbmpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MDgxNDIsImV4cCI6MjEwNDI4NDE0Mn0.ui2G5T83WeAK4X6CioAykjyTNOex5m8Y2w5EBQ9SlWs';
 
     let chartInstance = null;
     let cacheDonneesEpreuve = []; 
@@ -443,24 +445,85 @@
 
     document.getElementById('dateCompetition').valueAsDate = new Date();
 
+
+
+
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     async function apiGet(action, params = {}) {
-      const urlParams = new URLSearchParams({ action, ...params });
-      const response = await fetch(`${API_URL}?${urlParams.toString()}`);
-      const json = await response.json();
-      if (json.status === 'error') throw new Error(json.message);
-      return json.data;
+      if (action === 'getHistorique') {
+        const { data, error } = await supabaseClient
+          .from('performances')
+          .select('*')
+          .eq('nageur', params.nageur)
+          .eq('epreuve', params.epreuve)
+          .order('date', { ascending: false });
+        if (error) throw error;
+
+        // Transform data to match previous format
+        return data.map(row => {
+          const d = new Date(row.date);
+          const dateAffichage = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+          return {
+            dateAffichage: dateAffichage,
+            bassin: row.bassin,
+            tempsTexte: row.temps_texte,
+            secondes: row.secondes
+          };
+        });
+      }
+      throw new Error("Action not supported in Supabase migration: " + action);
     }
 
-    async function apiPost(data) {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(data)
-      });
-      const json = await response.json();
-      if (json.status === 'error') throw new Error(json.message);
-      return json.message;
+    async function apiPost(payload) {
+      if (payload.action === 'ajouterTemps') {
+        const { nageur, epreuve, bassin, date, tempsTexte } = payload.data;
+        let min = 0, sec = 0, cen = 0;
+        if (tempsTexte.includes(':')) {
+          const [minStr, secCenStr] = tempsTexte.split(':');
+          min = parseInt(minStr) || 0;
+          if (secCenStr.includes('.')) {
+            const [secStr, cenStr] = secCenStr.split('.');
+            sec = parseInt(secStr) || 0;
+            cen = parseInt(cenStr) || 0;
+          } else if (secCenStr.includes(',')) {
+            const [secStr, cenStr] = secCenStr.split(',');
+            sec = parseInt(secStr) || 0;
+            cen = parseInt(cenStr) || 0;
+          } else {
+            sec = parseInt(secCenStr) || 0;
+          }
+        } else if (tempsTexte.includes('.')) {
+          const [secStr, cenStr] = tempsTexte.split('.');
+          sec = parseInt(secStr) || 0;
+          cen = parseInt(cenStr) || 0;
+        } else if (tempsTexte.includes(',')) {
+          const [secStr, cenStr] = tempsTexte.split(',');
+          sec = parseInt(secStr) || 0;
+          cen = parseInt(cenStr) || 0;
+        } else {
+           sec = parseInt(tempsTexte) || 0;
+        }
+        const secondes = (min * 60) + sec + (cen / 100);
+
+        const { error } = await supabaseClient
+          .from('performances')
+          .insert([
+            {
+              nageur,
+              epreuve,
+              bassin,
+              date,
+              temps_texte: tempsTexte.replace('.', ','),
+              secondes
+            }
+          ]);
+        if (error) throw error;
+        return "Success";
+      }
+      throw new Error("Action not supported in Supabase migration: " + payload.action);
     }
+
 
     function switchView(mode) {
       vueActuelle = mode;
