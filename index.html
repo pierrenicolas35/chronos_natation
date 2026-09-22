@@ -465,6 +465,7 @@
           const d = new Date(row.date);
           const dateAffichage = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
           return {
+            dateISO: row.date,
             dateAffichage: dateAffichage,
             bassin: row.bassin,
             tempsTexte: row.temps_texte,
@@ -602,7 +603,15 @@
     }
 
     function traiterDonneesRecues(donnees) {
-      cacheDonneesEpreuve = donnees;
+      // Dédupliquer les lignes strictement identiques (même date, bassin et temps) :
+      // sinon les points et les info-bulles du graphique apparaissent en double.
+      const dejaVues = new Set();
+      cacheDonneesEpreuve = donnees.filter(d => {
+        const cle = `${d.dateISO || d.dateAffichage}|${d.bassin}|${d.tempsTexte}`;
+        if (dejaVues.has(cle)) return false;
+        dejaVues.add(cle);
+        return true;
+      });
 
       const d25 = cacheDonneesEpreuve.filter(d => d.bassin.includes('25'));
       const d50 = cacheDonneesEpreuve.filter(d => d.bassin.includes('50'));
@@ -645,6 +654,20 @@
       });
     }
 
+    // Formate des secondes en chrono "mm:ss,cc" (ex: 34.18 -> 00:34,18)
+    function formaterChrono(secondes) {
+      if (!isFinite(secondes)) return '--:--,--';
+      const min = Math.floor(secondes / 60);
+      const reste = secondes - min * 60;
+      return String(min).padStart(2, '0') + ':' + reste.toFixed(2).replace('.', ',').padStart(5, '0');
+    }
+
+    // Clé de tri chronologique : on privilégie la date ISO (YYYY-MM-DD),
+    // sinon on retombe sur l'affichage JJ/MM/AAAA.
+    function cleChrono(d) {
+      return d.dateISO || d.dateAffichage || '';
+    }
+
     function genererGraphique() {
       const ctx = document.getElementById('progressionChart').getContext('2d');
       const couleurActuelle = nageurActuel === 'Thomas' ? '#3b82f6' : '#ec4899';
@@ -653,13 +676,20 @@
 
       if (cacheDonneesEpreuve.length === 0) return;
 
-      const toutesLesDates = [...new Set(cacheDonneesEpreuve.map(d => d.dateAffichage))];
+      // Toujours afficher du plus ancien au plus récent (sens chronologique)
+      const donneesTriees = [...cacheDonneesEpreuve].sort((a, b) => {
+        const ca = cleChrono(a);
+        const cb = cleChrono(b);
+        return ca < cb ? -1 : ca > cb ? 1 : 0;
+      });
 
-      const d25 = cacheDonneesEpreuve.filter(d => d.bassin.includes('25'));
-      const d50 = cacheDonneesEpreuve.filter(d => d.bassin.includes('50'));
+      const toutesLesDates = [...new Set(donneesTriees.map(d => d.dateAffichage))];
 
-      const points25 = d25.map(d => ({ x: d.dateAffichage, y: d.secondes }));
-      const points50 = d50.map(d => ({ x: d.dateAffichage, y: d.secondes }));
+      const d25 = donneesTriees.filter(d => d.bassin.includes('25'));
+      const d50 = donneesTriees.filter(d => d.bassin.includes('50'));
+
+      const points25 = d25.map(d => ({ x: d.dateAffichage, y: d.secondes, tempsTexte: d.tempsTexte }));
+      const points50 = d50.map(d => ({ x: d.dateAffichage, y: d.secondes, tempsTexte: d.tempsTexte }));
 
       chartInstance = new Chart(ctx, {
         type: 'line',
@@ -698,7 +728,19 @@
             }
           },
           plugins: {
-            legend: { position: 'bottom' }
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                // Afficher le temps au format chrono (mm:ss,cc) plutôt que les secondes brutes
+                label: (ctx) => {
+                  const raw = ctx.raw || {};
+                  const temps = raw.tempsTexte
+                    ? raw.tempsTexte
+                    : formaterChrono(Number(raw.y));
+                  return ` ${ctx.dataset.label} : ${temps}`;
+                }
+              }
+            }
           }
         }
       });
